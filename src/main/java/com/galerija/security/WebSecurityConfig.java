@@ -62,6 +62,7 @@ public class WebSecurityConfig {
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
         configuration.setAllowCredentials(true);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -82,7 +83,11 @@ public class WebSecurityConfig {
             )
             .authorizeHttpRequests(auth -> 
                 auth
-                    .requestMatchers("/auth/**").permitAll()
+                    .requestMatchers("/api/auth/**").permitAll()
+                    .requestMatchers("/api/images/search/**").permitAll()
+                    .requestMatchers("/api/categories/**").permitAll()
+                    .requestMatchers("/api/comments/**").authenticated()
+                    .requestMatchers("/api/favorites/**").authenticated()
                     .requestMatchers("/error").permitAll()
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .anyRequest().authenticated()
