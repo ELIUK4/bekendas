@@ -67,4 +67,10 @@ public class ImageController {
         Image savedImage = imageService.saveImage(image);
         return ResponseEntity.ok(savedImage);
     }
+
+    @PostMapping("/{id}/like")
+    public ResponseEntity<Void> likeImage(@PathVariable Long id) {
+        imageService.likeImage(id);
+        return ResponseEntity.ok().build();
+    }
 }

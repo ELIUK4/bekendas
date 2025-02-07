@@ -109,4 +109,12 @@ public class ImageService {
     public List<Image> getImagesByIds(List<Long> ids) {
         return imageRepository.findByIdIn(ids);
     }
+
+    @Transactional
+    public void likeImage(Long id) {
+        Image image = imageRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Image not found with id: " + id));
+        image.setLikes(image.getLikes() + 1);
+        imageRepository.save(image);
+    }
 }
