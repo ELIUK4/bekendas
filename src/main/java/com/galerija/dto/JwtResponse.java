@@ -1,10 +1,12 @@
 package com.galerija.dto;
 
 import lombok.Data;
+import lombok.Getter;
 
 import java.util.List;
 
 @Data
+@Getter
 public class JwtResponse {
     private String token;
     private String type = "Bearer";
@@ -19,5 +21,29 @@ public class JwtResponse {
         this.username = username;
         this.email = email;
         this.roles = roles;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public List<String> getRoles() {
+        return roles;
     }
 }

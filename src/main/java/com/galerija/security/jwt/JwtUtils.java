@@ -20,7 +20,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
-import javax.crypto.SecretKey;
 
 @Component
 public class JwtUtils {
@@ -57,7 +56,7 @@ public class JwtUtils {
     UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
     
     return Jwts.builder()
-        .claim("sub", userPrincipal.getUsername())
+        .setSubject(userPrincipal.getUsername())
         .claim("roles", userPrincipal.getAuthorities().toString())
         .setIssuedAt(new Date())
         .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))

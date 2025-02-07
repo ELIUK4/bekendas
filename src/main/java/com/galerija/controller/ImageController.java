@@ -7,13 +7,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/images")
-@PreAuthorize("hasRole('USER')")
+@CrossOrigin(origins = "http://localhost:3000", allowedHeaders = "*", allowCredentials = "true", maxAge = 3600)
 public class ImageController {
     @Autowired
     private ImageService imageService;
@@ -22,7 +24,7 @@ public class ImageController {
     private SearchHistoryService searchHistoryService;
 
     @GetMapping("/search")
-    public ResponseEntity<?> searchImages(
+    public ResponseEntity<Map<String, Object>> searchImages(
             @RequestParam String query,
             @RequestParam(required = false, defaultValue = "photo") String imageType,
             @RequestParam(required = false, defaultValue = "all") String orientation,
@@ -30,7 +32,7 @@ public class ImageController {
             @RequestParam(required = false, defaultValue = "20") Integer perPage,
             @RequestParam(required = false, defaultValue = "1") Integer page) {
         
-        ResponseEntity<String> response = imageService.searchPixabayImages(
+        List<Image> images = imageService.searchPixabayImages(
                 query, imageType, orientation, category, perPage, page);
         
         // Save search history
@@ -38,7 +40,13 @@ public class ImageController {
                 String.format("type=%s,orientation=%s,category=%s", imageType, orientation, category),
                 perPage);
         
-        return response;
+        // Create response in Pixabay format
+        Map<String, Object> response = new HashMap<>();
+        response.put("total", images.size());
+        response.put("totalHits", images.size());
+        response.put("hits", images);
+        
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/local")

@@ -1,8 +1,6 @@
 package com.galerija.security.jwt;
-
-import com.galerija.security.jwt.JwtUtils;
 import com.galerija.security.services.UserDetailsServiceImpl;
-import jakarta.annotation.Nonnull;
+import org.springframework.lang.NonNull;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,13 +27,14 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     private static final Logger logger = LoggerFactory.getLogger(AuthTokenFilter.class);
 
     @Override
-    protected void doFilterInternal(@Nonnull HttpServletRequest request, @Nonnull HttpServletResponse response, @Nonnull FilterChain filterChain)
+    protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
             throws ServletException, IOException {
         
         String path = request.getRequestURI();
+        logger.debug("Request URI: {}, Authorization header: {}", path, request.getHeader("Authorization"));
+        
         if (path.startsWith("/api/auth/")) {
-            filterChain.doFilter(request, response);
-            return;
+            logger.debug("Skipping authentication for auth endpoint: {}", path);
         }
 
         try {
@@ -58,6 +57,13 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+        
+        // Log CORS headers after filter chain
+        logger.debug("Response CORS headers after filter:");
+        logger.debug("Access-Control-Allow-Origin: {}", response.getHeader("Access-Control-Allow-Origin"));
+        logger.debug("Access-Control-Allow-Methods: {}", response.getHeader("Access-Control-Allow-Methods"));
+        logger.debug("Access-Control-Allow-Headers: {}", response.getHeader("Access-Control-Allow-Headers"));
+        logger.debug("Access-Control-Allow-Credentials: {}", response.getHeader("Access-Control-Allow-Credentials"));
     }
 
     private String parseJwt(HttpServletRequest request) {

@@ -1,5 +1,6 @@
 package com.galerija.controller;
 
+import com.galerija.dto.FavoriteRequest;
 import com.galerija.entity.Favorite;
 import com.galerija.entity.Image;
 import com.galerija.service.FavoriteService;
@@ -11,7 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/favorites")
 @PreAuthorize("hasRole('USER')")
@@ -23,9 +25,28 @@ public class FavoriteController {
     private ImageService imageService;
 
     @PostMapping("/{imageId}")
-    public ResponseEntity<Favorite> addToFavorites(@PathVariable Long imageId) {
+    public ResponseEntity<Favorite> addToFavorites(
+            @PathVariable Long imageId,
+            @RequestBody(required = false) FavoriteRequest request) {
         Favorite favorite = favoriteService.addToFavorites(imageId);
         return ResponseEntity.ok(favorite);
+    }
+
+    @PostMapping("/batch")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<?> addBatchToFavorites(@RequestBody List<Long> imageIds) {
+        try {
+            if (imageIds == null || imageIds.isEmpty()) {
+                return ResponseEntity.badRequest().body("Image IDs list cannot be empty");
+            }
+            List<Favorite> favorites = favoriteService.addBatchToFavorites(imageIds);
+            if (favorites.isEmpty()) {
+                return ResponseEntity.badRequest().body("No images were added to favorites");
+            }
+            return ResponseEntity.ok(favorites);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error adding images to favorites: " + e.getMessage());
+        }
     }
 
     @DeleteMapping("/{imageId}")

@@ -44,6 +44,7 @@ public class UserEntity {
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
 
+    @Column(name = "created_at")
     private java.time.LocalDateTime createdAt;
     
     private java.time.LocalDateTime lastLoginAt;
