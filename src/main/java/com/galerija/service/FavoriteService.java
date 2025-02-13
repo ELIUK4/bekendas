@@ -3,15 +3,22 @@ package com.galerija.service;
 import com.galerija.entity.Favorite;
 import com.galerija.entity.Image;
 import com.galerija.entity.UserEntity;
+import com.galerija.exception.ResourceNotFoundException;
 import com.galerija.repository.FavoriteRepository;
 import com.galerija.repository.ImageRepository;
-import com.galerija.security.SecurityUtils;
+import com.galerija.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,86 +33,125 @@ public class FavoriteService {
     private ImageRepository imageRepository;
 
     @Autowired
-    private SecurityUtils securityUtils;
+    private UserRepository userRepository;
+
+    private UserEntity getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            logger.error("No authenticated user found");
+            throw new ResourceNotFoundException("No authenticated user found");
+        }
+
+        String username = authentication.getName();
+        logger.debug("Getting user for username: {}", username);
+        
+        return userRepository.findByUsername(username)
+                .orElseGet(() -> {
+                    logger.debug("Creating new user: {}", username);
+                    UserEntity user = new UserEntity();
+                    user.setUsername(username);
+                    return userRepository.save(user);
+                });
+    }
+
+    @Transactional
+    public Page<Favorite> getUserFavorites(int page, int size) {
+        logger.debug("Getting favorites for page {} with size {}", page, size);
+        UserEntity currentUser = getCurrentUser();
+        logger.debug("Current user: {}", currentUser.getUsername());
+        return favoriteRepository.findByUser(
+            currentUser, 
+            PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
+        );
+    }
 
     @Transactional
     public Favorite addToFavorites(Long imageId) {
-        logger.debug("Adding image {} to favorites", imageId);
+        logger.info("Starting to add image with ID {} to favorites", imageId);
         
-        UserEntity currentUser = securityUtils.getCurrentUser();
-        logger.debug("Current user: {}", currentUser.getUsername());
-        
-        Image image = imageRepository.findById(imageId)
-                .orElseThrow(() -> new RuntimeException("Image not found with id: " + imageId));
+        UserEntity user = getCurrentUser();
+        logger.debug("Current user retrieved: {}", user.getUsername());
 
-        Optional<Favorite> existingFavorite = favoriteRepository.findByUserAndImage(currentUser, image);
+        Image image = imageRepository.findById(imageId)
+                .orElseThrow(() -> {
+                    logger.error("Image not found with id: {}", imageId);
+                    return new ResourceNotFoundException("Image not found with id: " + imageId);
+                });
+        logger.debug("Image found: {}", image.getWebformatURL());
+
+        Optional<Favorite> existingFavorite = favoriteRepository.findByUserAndImage(user, image);
         if (existingFavorite.isPresent()) {
-            logger.debug("Image {} is already in favorites for user {}", imageId, currentUser.getUsername());
-            throw new RuntimeException("Image is already in favorites");
+            logger.debug("Image already in favorites for user {}", user.getUsername());
+            return existingFavorite.get();
         }
 
         Favorite favorite = new Favorite();
-        favorite.setUser(currentUser);
+        favorite.setUser(user);
         favorite.setImage(image);
+        logger.info("Saving new favorite for user {} and image {}", user.getUsername(), imageId);
         
-        logger.debug("Saving favorite to database");
         return favoriteRepository.save(favorite);
     }
 
     @Transactional
     public List<Favorite> addBatchToFavorites(List<Long> imageIds) {
-        logger.debug("Adding batch of {} images to favorites", imageIds.size());
+        if (imageIds == null || imageIds.isEmpty()) {
+            throw new ResourceNotFoundException("Image IDs list cannot be empty");
+        }
         
-        UserEntity currentUser = securityUtils.getCurrentUser();
-        List<Image> images = imageRepository.findAllById(imageIds);
+        logger.debug("Adding images {} to favorites", imageIds);
         
-        if (images.size() != imageIds.size()) {
-            logger.warn("Some images were not found. Found {}/{}", images.size(), imageIds.size());
-            throw new RuntimeException("Some images were not found");
+        UserEntity currentUser = getCurrentUser();
+        List<Favorite> favorites = new ArrayList<>();
+
+        for (Long imageId : imageIds) {
+            try {
+                Favorite favorite = addToFavorites(imageId);
+                favorites.add(favorite);
+            } catch (Exception e) {
+                logger.error("Error adding image {} to favorites: {}", imageId, e.getMessage());
+                // Continue with the next image
+            }
         }
 
-        return images.stream()
-                .map(image -> {
-                    Optional<Favorite> existingFavorite = favoriteRepository.findByUserAndImage(currentUser, image);
-                    if (existingFavorite.isPresent()) {
-                        logger.debug("Image {} is already in favorites", image.getId());
-                        return existingFavorite.get();
-                    }
-                    
-                    logger.debug("Adding image {} to favorites", image.getId());
-                    Favorite favorite = new Favorite();
-                    favorite.setUser(currentUser);
-                    favorite.setImage(image);
-                    return favoriteRepository.save(favorite);
-                })
-                .toList();
+        return favorites;
     }
 
     @Transactional
     public void removeFromFavorites(Long imageId) {
         logger.debug("Removing image {} from favorites", imageId);
         
-        UserEntity currentUser = securityUtils.getCurrentUser();
+        UserEntity currentUser = getCurrentUser();
+        logger.debug("Current user: {}", currentUser.getUsername());
+        
         Image image = imageRepository.findById(imageId)
-                .orElseThrow(() -> new RuntimeException("Image not found with id: " + imageId));
+                .orElseThrow(() -> {
+                    logger.error("Image not found with id: {}", imageId);
+                    return new ResourceNotFoundException("Image not found with id: " + imageId);
+                });
 
         Optional<Favorite> favorite = favoriteRepository.findByUserAndImage(currentUser, image);
         if (favorite.isEmpty()) {
-            logger.warn("Image {} is not in favorites for user {}", imageId, currentUser.getUsername());
-            throw new RuntimeException("Image is not in favorites");
+            logger.debug("Image {} is not in favorites for user {}", imageId, currentUser.getUsername());
+            throw new ResourceNotFoundException("Image not in favorites");
         }
 
-        logger.debug("Deleting favorite from database");
+        logger.debug("Deleting favorite for image {} and user {}", imageId, currentUser.getUsername());
         favoriteRepository.delete(favorite.get());
     }
 
     @Transactional(readOnly = true)
     public boolean isImageFavorite(Long imageId) {
-        logger.debug("Checking if image {} is favorite", imageId);
+        logger.debug("Checking if image {} is in favorites", imageId);
         
-        UserEntity currentUser = securityUtils.getCurrentUser();
+        UserEntity currentUser = getCurrentUser();
+        logger.debug("Current user: {}", currentUser.getUsername());
+        
         Image image = imageRepository.findById(imageId)
-                .orElseThrow(() -> new RuntimeException("Image not found with id: " + imageId));
+                .orElseThrow(() -> {
+                    logger.error("Image not found with id: {}", imageId);
+                    return new ResourceNotFoundException("Image not found with id: " + imageId);
+                });
 
         return favoriteRepository.findByUserAndImage(currentUser, image).isPresent();
     }

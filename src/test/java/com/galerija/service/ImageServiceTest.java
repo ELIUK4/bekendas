@@ -1,36 +1,32 @@
 package com.galerija.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.galerija.entity.Image;
 import com.galerija.repository.ImageRepository;
+import com.galerija.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
-@SpringBootTest
-@ActiveProfiles("test")
 class ImageServiceTest {
 
     @Mock
@@ -39,159 +35,184 @@ class ImageServiceTest {
     @Mock
     private RestTemplate restTemplate;
 
-    @Mock
-    private ObjectMapper objectMapper;
-
     @InjectMocks
     private ImageService imageService;
 
-    private static final Long IMAGE_ID = 1L;
-    private static final Long USER_ID = 1L;
-    private static final String QUERY = "test";
-    private static final String API_KEY = "48247705-1f17db8e4da96243d471ac295";
-    private static final String API_URL = "https://pixabay.com/api/";
-
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(imageService, "apiKey", API_KEY);
-        ReflectionTestUtils.setField(imageService, "apiUrl", API_URL);
+        ReflectionTestUtils.setField(imageService, "apiUrl", "https://pixabay.com/api/");
+        ReflectionTestUtils.setField(imageService, "apiKey", "test-api-key");
     }
 
-    @Test
-    void searchImages_Success() {
-        // Arrange
-        Pageable pageable = PageRequest.of(0, 10);
+    private Image createTestImage() {
         Image image = new Image();
-        image.setId(IMAGE_ID);
-        Page<Image> expectedPage = new PageImpl<>(Arrays.asList(image));
-        
-        when(imageRepository.searchImages(eq(QUERY), eq(pageable)))
-                .thenReturn(expectedPage);
-
-        // Act
-        Page<Image> result = imageService.searchImages(QUERY, pageable);
-
-        // Assert
-        assertNotNull(result);
-        assertEquals(1, result.getContent().size());
-        assertEquals(IMAGE_ID, result.getContent().get(0).getId());
-    }
-
-    @Test
-    void getUserFavorites_Success() {
-        // Arrange
-        Pageable pageable = PageRequest.of(0, 10);
-        Image image = new Image();
-        image.setId(IMAGE_ID);
-        Page<Image> expectedPage = new PageImpl<>(Arrays.asList(image));
-        
-        when(imageRepository.findUserFavorites(eq(USER_ID), eq(pageable)))
-                .thenReturn(expectedPage);
-
-        // Act
-        Page<Image> result = imageService.getUserFavorites(USER_ID, pageable);
-
-        // Assert
-        assertNotNull(result);
-        assertEquals(1, result.getContent().size());
-        assertEquals(IMAGE_ID, result.getContent().get(0).getId());
+        image.setId(1L);
+        image.setWebformatURL("https://test.com/image.jpg");
+        image.setTags("test, nature");
+        image.setUserId("testuser");
+        image.setLikes(0);
+        image.setViews(0);
+        image.setDownloads(0);
+        image.setComments(0);
+        return image;
     }
 
     @Test
     void getImageById_Success() {
         // Arrange
-        Image image = new Image();
-        image.setId(IMAGE_ID);
-        
-        when(imageRepository.findById(IMAGE_ID))
-                .thenReturn(Optional.of(image));
+        Image mockImage = createTestImage();
+        when(imageRepository.findById(1L)).thenReturn(Optional.of(mockImage));
 
         // Act
-        Image result = imageService.getImageById(IMAGE_ID);
+        Image result = imageService.getImageById(1L);
 
         // Assert
         assertNotNull(result);
-        assertEquals(IMAGE_ID, result.getId());
+        assertEquals(1L, result.getId());
+        assertEquals("https://test.com/image.jpg", result.getWebformatURL());
+        verify(imageRepository).findById(1L);
     }
 
     @Test
     void getImageById_NotFound() {
         // Arrange
-        when(imageRepository.findById(IMAGE_ID)).thenReturn(Optional.empty());
+        when(imageRepository.findById(1L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
-            imageService.getImageById(IMAGE_ID);
-        });
+        assertThrows(ResourceNotFoundException.class, () -> imageService.getImageById(1L));
+        verify(imageRepository).findById(1L);
     }
 
     @Test
-    void searchPixabayImages_Success() throws Exception {
+    void saveExternalImage_NewImage() {
         // Arrange
-        String expectedUrl = String.format("%s?key=%s&q=%s&image_type=%s&orientation=%s&category=%s&per_page=%d&page=%d",
-                API_URL, API_KEY, QUERY, "photo", "all", "nature", 20, 1);
-        
-        String mockJsonResponse = "{\"hits\":[{\"id\":123,\"pageURL\":\"test\",\"type\":\"photo\",\"tags\":\"test\",\"previewURL\":\"test\",\"previewWidth\":100,\"previewHeight\":100,\"webformatURL\":\"test\",\"webformatWidth\":800,\"webformatHeight\":600,\"largeImageURL\":\"test\",\"imageWidth\":1000,\"imageHeight\":800,\"imageSize\":12345,\"views\":100,\"downloads\":50,\"likes\":25,\"comments\":10,\"user_id\":456}]}";
-        ResponseEntity<String> mockResponse = ResponseEntity.ok(mockJsonResponse);
-        
-        // Mock RestTemplate response
-        when(restTemplate.getForEntity(eq(expectedUrl), eq(String.class)))
-                .thenReturn(mockResponse);
-        
-        // Mock ObjectMapper
-        JsonNode mockRoot = mock(JsonNode.class);
-        JsonNode mockHits = mock(JsonNode.class);
-        JsonNode mockHit = mock(JsonNode.class);
-        
-        when(objectMapper.readTree(mockJsonResponse)).thenReturn(mockRoot);
-        when(mockRoot.get("hits")).thenReturn(mockHits);
-        when(mockHits.isArray()).thenReturn(true);
-        when(mockHits.iterator()).thenReturn(Arrays.asList(mockHit).iterator());
-        
-        // Mock hit node values
-        when(mockHit.get(anyString())).thenAnswer(invocation -> {
-            String field = invocation.getArgument(0);
-            JsonNode mockValue = mock(JsonNode.class);
-            switch (field) {
-                case "id": when(mockValue.asLong()).thenReturn(123L); break;
-                case "pageURL": when(mockValue.asText()).thenReturn("test"); break;
-                case "type": when(mockValue.asText()).thenReturn("photo"); break;
-                case "tags": when(mockValue.asText()).thenReturn("test"); break;
-                case "previewURL": when(mockValue.asText()).thenReturn("test"); break;
-                case "previewWidth": when(mockValue.asInt()).thenReturn(100); break;
-                case "previewHeight": when(mockValue.asInt()).thenReturn(100); break;
-                case "webformatURL": when(mockValue.asText()).thenReturn("test"); break;
-                case "webformatWidth": when(mockValue.asInt()).thenReturn(800); break;
-                case "webformatHeight": when(mockValue.asInt()).thenReturn(600); break;
-                case "largeImageURL": when(mockValue.asText()).thenReturn("test"); break;
-                case "imageURL": return null;
-                case "imageWidth": when(mockValue.asInt()).thenReturn(1000); break;
-                case "imageHeight": when(mockValue.asInt()).thenReturn(800); break;
-                case "imageSize": when(mockValue.asLong()).thenReturn(12345L); break;
-                case "views": when(mockValue.asInt()).thenReturn(100); break;
-                case "downloads": when(mockValue.asInt()).thenReturn(50); break;
-                case "likes": when(mockValue.asInt()).thenReturn(25); break;
-                case "comments": when(mockValue.asInt()).thenReturn(10); break;
-                case "user_id": when(mockValue.asLong()).thenReturn(456L); break;
-            }
-            return mockValue;
-        });
-        
-        // Mock image repository
-        Image savedImage = new Image();
-        savedImage.setId(123L);
-        when(imageRepository.save(any(Image.class))).thenReturn(savedImage);
+        Image mockImage = createTestImage();
+        when(imageRepository.findByWebformatURL(anyString())).thenReturn(Optional.empty());
+        when(imageRepository.save(any(Image.class))).thenReturn(mockImage);
 
         // Act
-        List<Image> result = imageService.searchPixabayImages(
-                QUERY, "photo", "all", "nature", 20, 1);
+        Image result = imageService.saveExternalImage(
+            "https://test.com/image.jpg",
+            "test, nature",
+            "testUser"
+        );
 
         // Assert
         assertNotNull(result);
-        assertFalse(result.isEmpty());
-        assertEquals(1, result.size());
-        assertEquals(123L, result.get(0).getId());
-        verify(restTemplate).getForEntity(eq(expectedUrl), eq(String.class));
+        assertEquals("https://test.com/image.jpg", result.getWebformatURL());
+        assertEquals("test, nature", result.getTags());
+        assertEquals("testUser", result.getUserId());
+        assertEquals(0, result.getLikes());
+        verify(imageRepository).findByWebformatURL("https://test.com/image.jpg");
         verify(imageRepository).save(any(Image.class));
+    }
+
+    @Test
+    void saveExternalImage_ExistingImage() {
+        // Arrange
+        Image existingImage = createTestImage();
+        when(imageRepository.findByWebformatURL(anyString())).thenReturn(Optional.of(existingImage));
+
+        // Act
+        Image result = imageService.saveExternalImage(
+            "https://test.com/image.jpg",
+            "test, nature",
+            "testUser"
+        );
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(existingImage.getId(), result.getId());
+        assertEquals(existingImage.getWebformatURL(), result.getWebformatURL());
+        assertEquals(existingImage.getTags(), result.getTags());
+        assertEquals(existingImage.getUserId(), result.getUserId());
+        verify(imageRepository).findByWebformatURL("https://test.com/image.jpg");
+        verify(imageRepository, never()).save(any(Image.class));
+    }
+
+    @Test
+    void likeImage_Success() {
+        // Arrange
+        Image mockImage = createTestImage();
+        when(imageRepository.findById(1L)).thenReturn(Optional.of(mockImage));
+        when(imageRepository.save(any(Image.class))).thenAnswer(i -> i.getArgument(0));
+
+        // Act
+        Image result = imageService.likeImage(1L);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(1, result.getLikes());
+        verify(imageRepository).findById(1L);
+        verify(imageRepository).save(mockImage);
+    }
+
+    @Test
+    void likeImage_NotFound() {
+        // Arrange
+        when(imageRepository.findById(1L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThrows(ResourceNotFoundException.class, () -> imageService.likeImage(1L));
+        verify(imageRepository).findById(1L);
+        verify(imageRepository, never()).save(any(Image.class));
+    }
+
+    @Test
+    void getTotalSearchResults_GrazinaTeisingaRezultatuSkaiciu() throws Exception {
+        // Paruošiame duomenis
+        String query = "gamta";
+        String imageType = "photo";
+        String orientation = "all";
+        String category = null;
+        
+        String jsonResponse = "{\"totalHits\": 100, \"hits\": []}";
+        when(restTemplate.getForEntity(anyString(), eq(String.class)))
+            .thenReturn(ResponseEntity.ok(jsonResponse));
+
+        // Vykdome metodą
+        int totalResults = imageService.getTotalSearchResults(query, imageType, orientation, category);
+
+        // Tikriname rezultatus
+        assertEquals(100, totalResults);
+        verify(restTemplate).getForEntity(anyString(), eq(String.class));
+    }
+
+    @Test
+    void getTotalSearchResults_GrazinaNuliKaiKlaida() throws Exception {
+        // Paruošiame duomenis
+        String query = "gamta";
+        String imageType = "photo";
+        String orientation = "all";
+        String category = null;
+        
+        when(restTemplate.getForEntity(anyString(), eq(String.class)))
+            .thenReturn(ResponseEntity.badRequest().body(null));
+
+        // Vykdome metodą
+        int totalResults = imageService.getTotalSearchResults(query, imageType, orientation, category);
+
+        // Tikriname rezultatus
+        assertEquals(0, totalResults);
+        verify(restTemplate).getForEntity(anyString(), eq(String.class));
+    }
+
+    @Test
+    void getTotalSearchResults_GrazinaNuliKaiNeteisingasAtsakymas() throws Exception {
+        // Paruošiame duomenis
+        String query = "gamta";
+        String imageType = "photo";
+        String orientation = "all";
+        String category = null;
+        
+        when(restTemplate.getForEntity(anyString(), eq(String.class)))
+            .thenReturn(ResponseEntity.ok("{\"error\": \"Invalid API key\"}"));
+
+        // Vykdome metodą
+        int totalResults = imageService.getTotalSearchResults(query, imageType, orientation, category);
+
+        // Tikriname rezultatus
+        assertEquals(0, totalResults);
+        verify(restTemplate).getForEntity(anyString(), eq(String.class));
     }
 }

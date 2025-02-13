@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:3000", allowedHeaders = "*", allowCredentials = "true", maxAge = 3600)
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true", maxAge = 3600)
 public class AuthController {
     @Autowired
     private AuthService authService;
@@ -37,7 +37,14 @@ public class AuthController {
                     .map(item -> item.getAuthority())
                     .collect(Collectors.toList());
 
-            return ResponseEntity.ok(new JwtResponse(
+            // Add USER role if not present
+            if (!roles.contains("ROLE_USER")) {
+                roles.add("ROLE_USER");
+            }
+
+            return ResponseEntity.ok()
+                .header("Authorization", "Bearer " + jwt)
+                .body(new JwtResponse(
                     jwt,
                     userDetails.getId(),
                     userDetails.getUsername(),

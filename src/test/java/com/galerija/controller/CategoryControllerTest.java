@@ -4,24 +4,24 @@ import com.galerija.entity.Category;
 import com.galerija.service.CategoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.mockito.MockitoAnnotations;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@ExtendWith(MockitoExtension.class)
 class CategoryControllerTest {
+    private static final String CATEGORY_NAME = "test-category";
+    private static final String CATEGORY_DESCRIPTION = "Test Category Description";
+
+    private MockMvc mockMvc;
 
     @Mock
     private CategoryService categoryService;
@@ -30,102 +30,105 @@ class CategoryControllerTest {
     private CategoryController categoryController;
 
     private Category testCategory;
-    private static final String CATEGORY_NAME = "nature";
-    private static final String CATEGORY_DESCRIPTION = "Nature category";
 
     @BeforeEach
     void setUp() {
+        MockitoAnnotations.openMocks(this);
+        mockMvc = MockMvcBuilders
+            .standaloneSetup(categoryController)
+            .build();
+            
         testCategory = new Category();
+        testCategory.setId(1L);
         testCategory.setName(CATEGORY_NAME);
         testCategory.setDescription(CATEGORY_DESCRIPTION);
     }
 
     @Test
-    void getAllCategories_Success() {
-        // Arrange
-        List<Category> categories = Arrays.asList(testCategory);
-        when(categoryService.getAllCategories()).thenReturn(categories);
+    void getAllCategories_Success() throws Exception {
+        when(categoryService.getAllCategories()).thenReturn(Collections.singletonList(testCategory));
 
-        // Act
-        List<Category> result = categoryController.getAllCategories();
+        mockMvc.perform(get("/api/categories"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].name").value(CATEGORY_NAME))
+                .andExpect(jsonPath("$.total").value(1));
 
-        // Assert
-        assertNotNull(result);
-        assertEquals(1, result.size());
-        assertEquals(CATEGORY_NAME, result.get(0).getName());
         verify(categoryService).getAllCategories();
     }
 
     @Test
-    void getCategoryByName_Success() {
-        // Arrange
+    void getCategoryByName_Success() throws Exception {
         when(categoryService.getCategoryByName(CATEGORY_NAME)).thenReturn(testCategory);
 
-        // Act
-        ResponseEntity<Category> response = categoryController.getCategoryByName(CATEGORY_NAME);
+        mockMvc.perform(get("/api/categories/{name}", CATEGORY_NAME))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value(CATEGORY_NAME));
 
-        // Assert
-        assertTrue(response.getStatusCode().is2xxSuccessful());
-        assertNotNull(response.getBody());
-        assertEquals(CATEGORY_NAME, response.getBody().getName());
+        verify(categoryService).getCategoryByName(CATEGORY_NAME);
     }
 
     @Test
-    void getCategoryByName_NotFound() {
-        // Arrange
+    void getCategoryByName_NotFound() throws Exception {
         when(categoryService.getCategoryByName(CATEGORY_NAME))
-                .thenThrow(new RuntimeException("Category not found"));
+                .thenThrow(new RuntimeException("Category not found: " + CATEGORY_NAME));
 
-        // Act & Assert
-        assertThrows(RuntimeException.class, () -> 
-            categoryController.getCategoryByName(CATEGORY_NAME)
-        );
+        mockMvc.perform(get("/api/categories/{name}", CATEGORY_NAME))
+                .andExpect(status().is5xxServerError())
+                .andExpect(jsonPath("$.error").value("Error getting category: Category not found: " + CATEGORY_NAME))
+                .andExpect(jsonPath("$.status").value(500));
+
+        verify(categoryService).getCategoryByName(CATEGORY_NAME);
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
-    void initializeCategories_Success() {
-        // Arrange
-        doNothing().when(categoryService).initializeDefaultCategories();
+    void createCategory_Success() throws Exception {
+        when(categoryService.createCategory(CATEGORY_NAME, CATEGORY_DESCRIPTION)).thenReturn(testCategory);
 
-        // Act
-        ResponseEntity<?> response = categoryController.initializeCategories();
+        mockMvc.perform(post("/api/categories")
+                .param("name", CATEGORY_NAME)
+                .param("description", CATEGORY_DESCRIPTION))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value(CATEGORY_NAME));
 
-        // Assert
-        assertTrue(response.getStatusCode().is2xxSuccessful());
-        assertEquals("Categories initialized successfully", response.getBody());
-        verify(categoryService).initializeDefaultCategories();
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
-    void createCategory_Success() {
-        // Arrange
-        when(categoryService.createCategory(CATEGORY_NAME, CATEGORY_DESCRIPTION))
-                .thenReturn(testCategory);
-
-        // Act
-        ResponseEntity<Category> response = categoryController.createCategory(CATEGORY_NAME, CATEGORY_DESCRIPTION);
-
-        // Assert
-        assertTrue(response.getStatusCode().is2xxSuccessful());
-        assertNotNull(response.getBody());
-        assertEquals(CATEGORY_NAME, response.getBody().getName());
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
-    void createCategory_AlreadyExists() {
-        // Arrange
-        String expectedErrorMessage = "Category already exists: " + CATEGORY_NAME;
-        when(categoryService.createCategory(eq(CATEGORY_NAME), eq(CATEGORY_DESCRIPTION)))
-                .thenThrow(new RuntimeException(expectedErrorMessage));
-
-        // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> 
-            categoryController.createCategory(CATEGORY_NAME, CATEGORY_DESCRIPTION)
-        );
-        assertEquals(expectedErrorMessage, exception.getMessage());
         verify(categoryService).createCategory(CATEGORY_NAME, CATEGORY_DESCRIPTION);
+    }
+
+    @Test
+    void createCategory_Error() throws Exception {
+        when(categoryService.createCategory(CATEGORY_NAME, CATEGORY_DESCRIPTION))
+                .thenThrow(new RuntimeException("Category already exists"));
+
+        mockMvc.perform(post("/api/categories")
+                .param("name", CATEGORY_NAME)
+                .param("description", CATEGORY_DESCRIPTION))
+                .andExpect(status().is5xxServerError())
+                .andExpect(jsonPath("$.error").value("Error creating category: Category already exists"))
+                .andExpect(jsonPath("$.status").value(500));
+
+        verify(categoryService).createCategory(CATEGORY_NAME, CATEGORY_DESCRIPTION);
+    }
+
+    @Test
+    void deleteCategory_Success() throws Exception {
+        mockMvc.perform(delete("/api/categories/{id}", 1L))
+                .andExpect(status().isOk());
+
+        verify(categoryService).deleteCategory(1L);
+    }
+
+    @Test
+    void deleteCategory_Error() throws Exception {
+        doThrow(new RuntimeException("Category not found"))
+                .when(categoryService).deleteCategory(1L);
+
+        mockMvc.perform(delete("/api/categories/{id}", 1L))
+                .andExpect(status().is5xxServerError())
+                .andExpect(jsonPath("$.error").value("Error deleting category: Category not found"))
+                .andExpect(jsonPath("$.status").value(500));
+
+        verify(categoryService).deleteCategory(1L);
     }
 }

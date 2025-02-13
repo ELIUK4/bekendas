@@ -31,16 +31,25 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         
         String path = request.getRequestURI();
-        logger.debug("Request URI: {}, Authorization header: {}", path, request.getHeader("Authorization"));
+        logger.debug("Processing request: {} {}", request.getMethod(), path);
+        logger.debug("Authorization header: {}", request.getHeader("Authorization"));
         
-        if (path.startsWith("/api/auth/")) {
-            logger.debug("Skipping authentication for auth endpoint: {}", path);
+        // Skip authentication for public endpoints
+        if (path.startsWith("/api/auth/") || 
+            path.startsWith("/api/images/search") || 
+            path.startsWith("/api/categories/")) {
+            logger.debug("Skipping authentication for public endpoint: {}", path);
+            filterChain.doFilter(request, response);
+            return;
         }
 
         try {
             String jwt = parseJwt(request);
+            logger.debug("JWT token: {}", jwt);
+            
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
+                logger.debug("Valid JWT token for user: {}", username);
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 UsernamePasswordAuthenticationToken authentication =
@@ -51,6 +60,9 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                logger.debug("Successfully set authentication in SecurityContext");
+            } else if (jwt != null) {
+                logger.debug("Invalid JWT token");
             }
         } catch (Exception e) {
             logger.error("Cannot set user authentication: {}", e.getMessage());
@@ -58,12 +70,9 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
         
-        // Log CORS headers after filter chain
-        logger.debug("Response CORS headers after filter:");
-        logger.debug("Access-Control-Allow-Origin: {}", response.getHeader("Access-Control-Allow-Origin"));
-        logger.debug("Access-Control-Allow-Methods: {}", response.getHeader("Access-Control-Allow-Methods"));
-        logger.debug("Access-Control-Allow-Headers: {}", response.getHeader("Access-Control-Allow-Headers"));
-        logger.debug("Access-Control-Allow-Credentials: {}", response.getHeader("Access-Control-Allow-Credentials"));
+        // Log response status and headers
+        logger.debug("Response status: {}", response.getStatus());
+        logger.debug("Response headers: {}", response.getHeaderNames());
     }
 
     private String parseJwt(HttpServletRequest request) {

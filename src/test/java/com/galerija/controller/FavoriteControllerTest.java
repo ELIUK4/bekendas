@@ -1,6 +1,5 @@
 package com.galerija.controller;
 
-import com.galerija.dto.FavoriteRequest;
 import com.galerija.entity.Favorite;
 import com.galerija.entity.Image;
 import com.galerija.entity.UserEntity;
@@ -8,18 +7,26 @@ import com.galerija.service.FavoriteService;
 import com.galerija.service.ImageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.mockito.MockitoAnnotations;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.util.Arrays;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@ExtendWith(MockitoExtension.class)
 class FavoriteControllerTest {
+
+    private MockMvc mockMvc;
+    private ObjectMapper objectMapper;
 
     @Mock
     private FavoriteService favoriteService;
@@ -30,107 +37,112 @@ class FavoriteControllerTest {
     @InjectMocks
     private FavoriteController favoriteController;
 
-    private static final Long IMAGE_ID = 1L;
-    private Favorite testFavorite;
-    private Image testImage;
-    private UserEntity testUser;
-    private FavoriteRequest testRequest;
-
     @BeforeEach
     void setUp() {
-        testUser = new UserEntity();
-        testUser.setId(1L);
-        testUser.setUsername("testUser");
+        MockitoAnnotations.openMocks(this);
+        objectMapper = new ObjectMapper();
+        mockMvc = MockMvcBuilders
+            .standaloneSetup(favoriteController)
+            .build();
+    }
 
-        testImage = new Image();
-        testImage.setId(IMAGE_ID);
-        testImage.setTags("Test Image");
+    private Favorite createTestFavorite(Long id, Long userId, Long imageId) {
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        user.setUsername("testUser");
 
-        testFavorite = new Favorite();
-        testFavorite.setId(1L);
-        testFavorite.setUser(testUser);
-        testFavorite.setImage(testImage);
+        Image image = new Image();
+        image.setId(imageId);
+        image.setWebformatURL("test-url");
+        image.setTags("test-tags");
 
-        testRequest = new FavoriteRequest();
-        testRequest.setUrl("http://example.com/image.jpg");
-        testRequest.setTags("test, image");
-        testRequest.setUser("testUser");
+        Favorite favorite = new Favorite();
+        favorite.setId(id);
+        favorite.setUser(user);
+        favorite.setImage(image);
+        return favorite;
     }
 
     @Test
-    @WithMockUser(roles = "USER")
-    void addToFavorites_Success() {
-        // Arrange
-        when(favoriteService.addToFavorites(IMAGE_ID)).thenReturn(testFavorite);
+    void testAddToFavorites_Success() throws Exception {
+        Long imageId = 1L;
+        Favorite favorite = createTestFavorite(1L, 1L, imageId);
+        when(favoriteService.addToFavorites(imageId)).thenReturn(favorite);
 
-        // Act
-        ResponseEntity<Favorite> response = favoriteController.addToFavorites(IMAGE_ID, testRequest);
+        mockMvc.perform(post("/api/favorites/{imageId}", imageId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.user.id").value(1))
+                .andExpect(jsonPath("$.image.id").value(imageId));
 
-        // Assert
-        assertTrue(response.getStatusCode().is2xxSuccessful());
-        assertNotNull(response.getBody());
-        assertEquals(testFavorite.getId(), response.getBody().getId());
-        assertEquals(testImage.getId(), response.getBody().getImage().getId());
-        verify(favoriteService).addToFavorites(IMAGE_ID);
+        verify(favoriteService).addToFavorites(imageId);
     }
 
     @Test
-    @WithMockUser(roles = "USER")
-    void addToFavorites_AlreadyExists() {
-        // Arrange
-        when(favoriteService.addToFavorites(IMAGE_ID))
-                .thenThrow(new RuntimeException("Image is already in favorites"));
+    void testAddToFavorites_NotFound() throws Exception {
+        Long imageId = 1L;
+        when(favoriteService.addToFavorites(imageId))
+                .thenThrow(new RuntimeException("Image not found"));
 
-        // Act & Assert
-        Exception exception = assertThrows(RuntimeException.class, () ->
-            favoriteController.addToFavorites(IMAGE_ID, testRequest)
+        mockMvc.perform(post("/api/favorites/{imageId}", imageId))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("Error adding image to favorites: Image not found"))
+                .andExpect(jsonPath("$.status").value(500));
+
+        verify(favoriteService).addToFavorites(imageId);
+    }
+
+    @Test
+    void testAddBatchToFavorites_Success() throws Exception {
+        List<Long> imageIds = Arrays.asList(1L, 2L);
+        List<Favorite> favorites = Arrays.asList(
+            createTestFavorite(1L, 1L, 1L),
+            createTestFavorite(2L, 1L, 2L)
         );
-        assertTrue(exception.getMessage().contains("Image is already in favorites"));
+        when(favoriteService.addBatchToFavorites(imageIds)).thenReturn(favorites);
+
+        mockMvc.perform(post("/api/favorites/batch")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(imageIds)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[1].id").value(2));
+
+        verify(favoriteService).addBatchToFavorites(imageIds);
     }
 
     @Test
-    @WithMockUser(roles = "USER")
-    void removeFromFavorites_Success() {
-        // Arrange
-        doNothing().when(favoriteService).removeFromFavorites(IMAGE_ID);
-
-        // Act
-        ResponseEntity<?> response = favoriteController.removeFromFavorites(IMAGE_ID);
-
-        // Assert
-        assertTrue(response.getStatusCode().is2xxSuccessful());
-        verify(favoriteService).removeFromFavorites(IMAGE_ID);
+    void testAddBatchToFavorites_EmptyList() throws Exception {
+        mockMvc.perform(post("/api/favorites/batch")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("[]"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Image IDs list cannot be empty"))
+                .andExpect(jsonPath("$.status").value(400));
     }
 
     @Test
-    @WithMockUser(roles = "USER")
-    void checkFavorite_True() {
-        // Arrange
-        when(favoriteService.isImageFavorite(IMAGE_ID)).thenReturn(true);
+    void testRemoveFromFavorites_Success() throws Exception {
+        Long imageId = 1L;
+        doNothing().when(favoriteService).removeFromFavorites(imageId);
 
-        // Act
-        ResponseEntity<Boolean> response = favoriteController.checkFavorite(IMAGE_ID);
+        mockMvc.perform(delete("/api/favorites/{imageId}", imageId))
+                .andExpect(status().isOk());
 
-        // Assert
-        assertTrue(response.getStatusCode().is2xxSuccessful());
-        assertNotNull(response.getBody());
-        assertTrue(response.getBody());
-        verify(favoriteService).isImageFavorite(IMAGE_ID);
+        verify(favoriteService).removeFromFavorites(imageId);
     }
 
     @Test
-    @WithMockUser(roles = "USER")
-    void checkFavorite_False() {
-        // Arrange
-        when(favoriteService.isImageFavorite(IMAGE_ID)).thenReturn(false);
+    void testRemoveFromFavorites_NotFound() throws Exception {
+        Long imageId = 1L;
+        doThrow(new RuntimeException("Favorite not found"))
+            .when(favoriteService).removeFromFavorites(imageId);
 
-        // Act
-        ResponseEntity<Boolean> response = favoriteController.checkFavorite(IMAGE_ID);
+        mockMvc.perform(delete("/api/favorites/{imageId}", imageId))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("Error removing image from favorites: Favorite not found"))
+                .andExpect(jsonPath("$.status").value(500));
 
-        // Assert
-        assertTrue(response.getStatusCode().is2xxSuccessful());
-        assertNotNull(response.getBody());
-        assertFalse(response.getBody());
-        verify(favoriteService).isImageFavorite(IMAGE_ID);
+        verify(favoriteService).removeFromFavorites(imageId);
     }
 }

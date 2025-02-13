@@ -5,6 +5,8 @@ import com.galerija.entity.UserEntity;
 import com.galerija.repository.RoleRepository;
 import com.galerija.repository.UserRepository;
 import com.galerija.service.CategoryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -15,6 +17,8 @@ import java.util.Set;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
+    private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
+
     @Autowired
     private RoleRepository roleRepository;
 
@@ -29,9 +33,15 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        initRoles();
-        initAdminUser();
-        categoryService.initializeDefaultCategories();
+        try {
+            initRoles();
+            initAdminUser();
+            logger.info("Initializing default categories...");
+            categoryService.initializeDefaultCategories();
+            logger.info("Default categories initialized successfully");
+        } catch (Exception e) {
+            logger.error("Error initializing default categories: {}", e.getMessage(), e);
+        }
     }
 
     private void initRoles() {

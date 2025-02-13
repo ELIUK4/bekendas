@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS favorites;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS images;
+DROP TABLE IF EXISTS comments;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -38,27 +39,27 @@ CREATE TABLE categories (
 );
 
 CREATE TABLE images (
-    id BIGINT PRIMARY KEY,
-    page_url VARCHAR(500) NOT NULL,
-    type VARCHAR(50) NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    page_url TEXT,
+    type VARCHAR(255) NOT NULL DEFAULT 'photo',
     tags TEXT,
-    preview_url VARCHAR(500) NOT NULL,
-    preview_width INT,
-    preview_height INT,
-    webformat_url VARCHAR(500) NOT NULL,
-    webformat_width INT,
-    webformat_height INT,
-    large_image_url VARCHAR(500),
-    fullhd_url VARCHAR(500),
-    image_url VARCHAR(500),
-    image_width INT,
-    image_height INT,
-    image_size BIGINT,
-    views INT,
-    downloads INT,
-    likes INT,
-    comments INT,
-    user_id BIGINT,
+    preview_url TEXT,
+    preview_width INT DEFAULT 0,
+    preview_height INT DEFAULT 0,
+    webformat_url TEXT NOT NULL,
+    webformat_width INT DEFAULT 0,
+    webformat_height INT DEFAULT 0,
+    large_image_url TEXT,
+    fullhd_url TEXT,
+    image_url TEXT,
+    image_width INT DEFAULT 0,
+    image_height INT DEFAULT 0,
+    image_size BIGINT DEFAULT 0,
+    views INT DEFAULT 0,
+    downloads INT DEFAULT 0,
+    likes INT DEFAULT 0,
+    comments INT DEFAULT 0,
+    user_id VARCHAR(255) DEFAULT '0',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -70,4 +71,14 @@ CREATE TABLE favorites (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
     UNIQUE KEY unique_user_image (user_id, image_id)
+);
+
+CREATE TABLE comments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    image_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
 );
