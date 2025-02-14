@@ -82,7 +82,7 @@ public class FavoriteService {
         Optional<Favorite> existingFavorite = favoriteRepository.findByUserAndImage(user, image);
         if (existingFavorite.isPresent()) {
             logger.debug("Image already in favorites for user {}", user.getUsername());
-            return existingFavorite.get();
+            throw new ResourceNotFoundException("Image already in favorites");
         }
 
         Favorite favorite = new Favorite();

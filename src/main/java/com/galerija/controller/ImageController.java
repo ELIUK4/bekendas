@@ -1,16 +1,12 @@
 package com.galerija.controller;
 
 import com.galerija.entity.Image;
-import com.galerija.dto.ExternalImageDto;
 import com.galerija.service.ImageService;
 import com.galerija.service.SearchHistoryService;
 import com.galerija.exception.ResourceNotFoundException;
-import com.galerija.security.SecurityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,7 +16,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/images")
@@ -31,9 +26,6 @@ public class ImageController {
 
     @Autowired
     private SearchHistoryService searchHistoryService;
-
-    @Autowired
-    private SecurityUtils securityUtils;
 
     private static final Logger logger = LoggerFactory.getLogger(ImageController.class);
 
@@ -113,14 +105,6 @@ public class ImageController {
         }
     }
 
-    @GetMapping("/local")
-    public ResponseEntity<Page<Image>> searchLocalImages(
-            @RequestParam String query,
-            Pageable pageable) {
-        Page<Image> result = imageService.searchImages(query, pageable);
-        return ResponseEntity.ok(result);
-    }
-
     @GetMapping("/{id}")
     public ResponseEntity<?> getImage(@PathVariable Long id) {
         try {
@@ -128,22 +112,6 @@ public class ImageController {
             return ResponseEntity.ok(image);
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Image not found");
-        }
-    }
-
-    @GetMapping("/by-url")
-    public ResponseEntity<?> getImageByUrl(@RequestParam String url) {
-        try {
-            logger.debug("Looking for image by URL: {}", url);
-            Optional<Image> image = imageService.findByWebformatURL(url);
-            if (image.isPresent()) {
-                return ResponseEntity.ok(image.get());
-            }
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            logger.error("Failed to get image by URL: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Failed to get image by URL: " + e.getMessage());
         }
     }
 
@@ -155,7 +123,6 @@ public class ImageController {
     }
 
     @PostMapping("/{id}/like")
-    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<?> likeImage(@PathVariable Long id) {
         try {
             Image likedImage = imageService.likeImage(id);
@@ -166,7 +133,6 @@ public class ImageController {
     }
 
     @PostMapping("/external")
-    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<?> saveExternalImage(@RequestBody Image externalImage) {
         try {
             logger.debug("Received external image: {}", externalImage);
@@ -179,15 +145,13 @@ public class ImageController {
     }
 
     @GetMapping("/user")
-    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<?> getUserImages() {
         try {
             List<Image> userImages = imageService.getUserImages();
             return ResponseEntity.ok(userImages);
         } catch (Exception e) {
             logger.error("Failed to get user images: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Failed to get user images: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Failed to get user images: " + e.getMessage());
         }
     }
 }
