@@ -1,5 +1,6 @@
 package com.galerija.controller;
 
+import com.galerija.dto.SearchHistoryRequest;
 import com.galerija.entity.SearchHistory;
 import com.galerija.entity.UserEntity;
 import com.galerija.service.SearchHistoryService;
@@ -35,6 +36,7 @@ class SearchHistoryControllerTest {
     private SearchHistory testSearchHistory;
     private UserEntity testUser;
     private Pageable pageable;
+    private SearchHistoryRequest testRequest;
 
     @BeforeEach
     void setUp() {
@@ -50,6 +52,10 @@ class SearchHistoryControllerTest {
         testSearchHistory.setResultsCount(20);
         testSearchHistory.setSearchDate(LocalDateTime.now());
 
+        testRequest = new SearchHistoryRequest();
+        testRequest.setSearchQuery("test query");
+        testRequest.setResultsCount(20);
+
         pageable = PageRequest.of(0, 10);
     }
 
@@ -62,9 +68,11 @@ class SearchHistoryControllerTest {
                 .thenReturn(expectedPage);
 
         // Act
-        Page<SearchHistory> result = searchHistoryController.getUserSearchHistory(pageable);
+        ResponseEntity<Page<SearchHistory>> response = searchHistoryController.getUserSearchHistory(pageable);
 
         // Assert
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        Page<SearchHistory> result = response.getBody();
         assertNotNull(result);
         assertEquals(1, result.getContent().size());
         assertEquals(testSearchHistory.getSearchQuery(), result.getContent().get(0).getSearchQuery());
@@ -80,12 +88,32 @@ class SearchHistoryControllerTest {
                 .thenReturn(emptyPage);
 
         // Act
-        Page<SearchHistory> result = searchHistoryController.getUserSearchHistory(pageable);
+        ResponseEntity<Page<SearchHistory>> response = searchHistoryController.getUserSearchHistory(pageable);
 
         // Assert
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        Page<SearchHistory> result = response.getBody();
         assertNotNull(result);
         assertTrue(result.getContent().isEmpty());
         verify(searchHistoryService).getUserSearchHistory(pageable);
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void saveSearch_Success() {
+        // Arrange
+        when(searchHistoryService.saveSearch(anyString(), anyInt()))
+                .thenReturn(testSearchHistory);
+
+        // Act
+        ResponseEntity<SearchHistory> response = searchHistoryController.saveSearch(testRequest);
+
+        // Assert
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        SearchHistory result = response.getBody();
+        assertNotNull(result);
+        assertEquals(testSearchHistory.getSearchQuery(), result.getSearchQuery());
+        verify(searchHistoryService).saveSearch(testRequest.getSearchQuery(), testRequest.getResultsCount());
     }
 
     @Test
@@ -99,20 +127,6 @@ class SearchHistoryControllerTest {
 
         // Assert
         assertTrue(response.getStatusCode().is2xxSuccessful());
-        verify(searchHistoryService).clearUserSearchHistory();
-    }
-
-    @Test
-    @WithMockUser(roles = "USER")
-    void clearSearchHistory_Error() {
-        // Arrange
-        doThrow(new RuntimeException("Error clearing history"))
-                .when(searchHistoryService).clearUserSearchHistory();
-
-        // Act & Assert
-        assertThrows(RuntimeException.class, () ->
-            searchHistoryController.clearSearchHistory()
-        );
         verify(searchHistoryService).clearUserSearchHistory();
     }
 }

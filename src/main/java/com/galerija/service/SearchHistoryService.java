@@ -5,6 +5,7 @@ import com.galerija.entity.UserEntity;
 import com.galerija.exception.ResourceNotFoundException;
 import com.galerija.repository.SearchHistoryRepository;
 import com.galerija.repository.UserRepository;
+import com.galerija.security.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,16 +20,23 @@ public class SearchHistoryService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private SecurityUtils securityUtils;
+
+    @Transactional
+    public SearchHistory saveSearch(String query, Integer resultsCount) {
+        return saveSearch(query, null, resultsCount);
+    }
+
     @Transactional
     public SearchHistory saveSearch(String query, String filters, Integer resultsCount) {
-        // For testing purposes, use a mock user
-        UserEntity currentUser = userRepository.findById(1L)
-                .orElseGet(() -> {
-                    UserEntity user = new UserEntity();
-                    user.setId(1L);
-                    user.setUsername("testUser");
-                    return userRepository.save(user);
-                });
+        Long userId = securityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new ResourceNotFoundException("User not found or not authenticated");
+        }
+
+        UserEntity currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
         SearchHistory searchHistory = new SearchHistory();
         searchHistory.setUser(currentUser);
@@ -41,27 +49,27 @@ public class SearchHistoryService {
 
     @Transactional(readOnly = true)
     public Page<SearchHistory> getUserSearchHistory(Pageable pageable) {
-        // For testing purposes, use a mock user
-        UserEntity currentUser = userRepository.findById(1L)
-                .orElseGet(() -> {
-                    UserEntity user = new UserEntity();
-                    user.setId(1L);
-                    user.setUsername("testUser");
-                    return userRepository.save(user);
-                });
+        Long userId = securityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new ResourceNotFoundException("User not found or not authenticated");
+        }
+
+        UserEntity currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
         return searchHistoryRepository.findByUserOrderBySearchDateDesc(currentUser, pageable);
     }
 
     @Transactional
     public void clearUserSearchHistory() {
-        // For testing purposes, use a mock user
-        UserEntity currentUser = userRepository.findById(1L)
-                .orElseGet(() -> {
-                    UserEntity user = new UserEntity();
-                    user.setId(1L);
-                    user.setUsername("testUser");
-                    return userRepository.save(user);
-                });
+        Long userId = securityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new ResourceNotFoundException("User not found or not authenticated");
+        }
+
+        UserEntity currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
         try {
             searchHistoryRepository.deleteByUser(currentUser);
         } catch (Exception e) {

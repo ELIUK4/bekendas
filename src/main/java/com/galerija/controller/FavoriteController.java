@@ -32,9 +32,15 @@ public class FavoriteController {
     @PostMapping("/{imageId}")
     @PreAuthorize("isAuthenticated()")
     @Transactional
-    public ResponseEntity<?> addToFavorites(@PathVariable Long imageId) {
+    public ResponseEntity<?> addToFavorites(@PathVariable Long imageId, @RequestBody(required = false) Image imageData) {
         try {
-            logger.debug("Adding image {} to favorites", imageId);
+            logger.debug("Adding image {} to favorites with data: {}", imageId, imageData);
+            
+            // Save image if provided
+            if (imageData != null) {
+                imageData.setId(imageId);
+                imageService.saveImage(imageData);
+            }
             
             // Add to favorites
             Favorite favorite = favoriteService.addToFavorites(imageId);

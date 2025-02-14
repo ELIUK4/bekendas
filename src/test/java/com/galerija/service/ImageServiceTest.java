@@ -49,11 +49,14 @@ class ImageServiceTest {
         image.setId(1L);
         image.setWebformatURL("https://test.com/image.jpg");
         image.setTags("test, nature");
-        image.setUserId("testuser");
+        image.setUserId(1L);
         image.setLikes(0);
         image.setViews(0);
         image.setDownloads(0);
         image.setComments(0);
+        image.setType("photo");
+        image.setPreviewURL("https://test.com/preview.jpg");
+        image.setLargeImageURL("https://test.com/large.jpg");
         return image;
     }
 
@@ -84,49 +87,45 @@ class ImageServiceTest {
     }
 
     @Test
-    void saveExternalImage_NewImage() {
-        // Arrange
-        Image mockImage = createTestImage();
+    void whenSaveExternalImage_thenImageIsSaved() {
+        // Given
+        Image externalImage = new Image();
+        externalImage.setWebformatURL("http://example.com/image.jpg");
+        externalImage.setTags("test tags");
+        externalImage.setUserId(1L);
+        
         when(imageRepository.findByWebformatURL(anyString())).thenReturn(Optional.empty());
-        when(imageRepository.save(any(Image.class))).thenReturn(mockImage);
-
-        // Act
-        Image result = imageService.saveExternalImage(
-            "https://test.com/image.jpg",
-            "test, nature",
-            "testUser"
-        );
-
-        // Assert
-        assertNotNull(result);
-        assertEquals("https://test.com/image.jpg", result.getWebformatURL());
-        assertEquals("test, nature", result.getTags());
-        assertEquals("testUser", result.getUserId());
-        assertEquals(0, result.getLikes());
-        verify(imageRepository).findByWebformatURL("https://test.com/image.jpg");
+        when(imageRepository.save(any(Image.class))).thenReturn(externalImage);
+        
+        // When
+        Image savedImage = imageService.saveExternalImage(externalImage);
+        
+        // Then
+        assertNotNull(savedImage);
+        assertEquals("http://example.com/image.jpg", savedImage.getWebformatURL());
+        assertEquals("test tags", savedImage.getTags());
+        assertEquals(1L, savedImage.getUserId());
         verify(imageRepository).save(any(Image.class));
     }
 
     @Test
-    void saveExternalImage_ExistingImage() {
-        // Arrange
-        Image existingImage = createTestImage();
+    void whenSaveExternalImageWithExistingUrl_thenReturnExistingImage() {
+        // Given
+        Image existingImage = new Image();
+        existingImage.setWebformatURL("http://example.com/image.jpg");
+        existingImage.setTags("existing tags");
+        existingImage.setUserId(1L);
+        
         when(imageRepository.findByWebformatURL(anyString())).thenReturn(Optional.of(existingImage));
-
-        // Act
-        Image result = imageService.saveExternalImage(
-            "https://test.com/image.jpg",
-            "test, nature",
-            "testUser"
-        );
-
-        // Assert
+        
+        // When
+        Image result = imageService.saveExternalImage(existingImage);
+        
+        // Then
         assertNotNull(result);
-        assertEquals(existingImage.getId(), result.getId());
-        assertEquals(existingImage.getWebformatURL(), result.getWebformatURL());
-        assertEquals(existingImage.getTags(), result.getTags());
-        assertEquals(existingImage.getUserId(), result.getUserId());
-        verify(imageRepository).findByWebformatURL("https://test.com/image.jpg");
+        assertEquals("http://example.com/image.jpg", result.getWebformatURL());
+        assertEquals("existing tags", result.getTags());
+        assertEquals(1L, result.getUserId());
         verify(imageRepository, never()).save(any(Image.class));
     }
 

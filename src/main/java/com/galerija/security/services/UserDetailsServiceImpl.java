@@ -32,4 +32,18 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         logger.debug("User found: {} with {} roles", username, user.getRoles().size());
         return UserDetailsImpl.build(user);
     }
+
+    @Transactional
+    public UserDetails loadUserById(Long id) {
+        logger.debug("Loading user details for id: {}", id);
+        
+        UserEntity user = userRepository.findById(id)
+                .orElseThrow(() -> {
+                    logger.error("User not found with id: {}", id);
+                    return new UsernameNotFoundException("User Not Found with id: " + id);
+                });
+
+        logger.debug("User found: {} with {} roles", user.getUsername(), user.getRoles().size());
+        return UserDetailsImpl.build(user);
+    }
 }

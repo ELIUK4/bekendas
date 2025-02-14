@@ -1,0 +1,3 @@
+ALTER TABLE images
+MODIFY COLUMN webformat_url LONGTEXT NOT NULL,
+MODIFY COLUMN large_image_url LONGTEXT;

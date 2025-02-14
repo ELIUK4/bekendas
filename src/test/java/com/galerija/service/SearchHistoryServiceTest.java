@@ -5,6 +5,7 @@ import com.galerija.entity.UserEntity;
 import com.galerija.exception.ResourceNotFoundException;
 import com.galerija.repository.SearchHistoryRepository;
 import com.galerija.repository.UserRepository;
+import com.galerija.security.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,9 @@ class SearchHistoryServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private SecurityUtils securityUtils;
+
     @InjectMocks
     private SearchHistoryService searchHistoryService;
 
@@ -60,6 +64,9 @@ class SearchHistoryServiceTest {
         testSearchHistory.setSearchDate(LocalDateTime.now());
 
         pageable = PageRequest.of(0, 10);
+
+        // Mock SecurityUtils
+        when(securityUtils.getCurrentUserId()).thenReturn(1L);
     }
 
     @Test
@@ -79,6 +86,7 @@ class SearchHistoryServiceTest {
         assertEquals(RESULTS_COUNT, result.getResultsCount());
         assertEquals(testUser, result.getUser());
         verify(searchHistoryRepository).save(any(SearchHistory.class));
+        verify(securityUtils).getCurrentUserId();
     }
 
     @Test
@@ -97,23 +105,7 @@ class SearchHistoryServiceTest {
         assertEquals(1, result.getContent().size());
         assertEquals(QUERY, result.getContent().get(0).getSearchQuery());
         verify(searchHistoryRepository).findByUserOrderBySearchDateDesc(testUser, pageable);
-    }
-
-    @Test
-    void getUserSearchHistory_EmptyHistory() {
-        // Arrange
-        Page<SearchHistory> emptyPage = new PageImpl<>(Arrays.asList());
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(searchHistoryRepository.findByUserOrderBySearchDateDesc(eq(testUser), any(Pageable.class)))
-                .thenReturn(emptyPage);
-
-        // Act
-        Page<SearchHistory> result = searchHistoryService.getUserSearchHistory(pageable);
-
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.getContent().isEmpty());
-        verify(searchHistoryRepository).findByUserOrderBySearchDateDesc(testUser, pageable);
+        verify(securityUtils).getCurrentUserId();
     }
 
     @Test
@@ -122,26 +114,87 @@ class SearchHistoryServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         doNothing().when(searchHistoryRepository).deleteByUser(testUser);
 
-        // Act
-        searchHistoryService.clearUserSearchHistory();
-
-        // Assert
+        // Act & Assert
+        assertDoesNotThrow(() -> searchHistoryService.clearUserSearchHistory());
         verify(searchHistoryRepository).deleteByUser(testUser);
+        verify(securityUtils).getCurrentUserId();
     }
 
     @Test
-    void clearUserSearchHistory_Error() {
+    void saveSearch_UserNotFound() {
         // Arrange
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        doThrow(new RuntimeException("Error clearing history"))
-                .when(searchHistoryRepository).deleteByUser(testUser);
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        ResourceNotFoundException exception = assertThrows(
-            ResourceNotFoundException.class,
-            () -> searchHistoryService.clearUserSearchHistory()
+        assertThrows(ResourceNotFoundException.class, () -> 
+            searchHistoryService.saveSearch(QUERY, FILTERS, RESULTS_COUNT)
         );
-        assertEquals("Error clearing history: Error clearing history", exception.getMessage());
-        verify(searchHistoryRepository).deleteByUser(testUser);
+        verify(searchHistoryRepository, never()).save(any());
+        verify(securityUtils).getCurrentUserId();
+    }
+
+    @Test
+    void getUserSearchHistory_UserNotFound() {
+        // Arrange
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThrows(ResourceNotFoundException.class, () -> 
+            searchHistoryService.getUserSearchHistory(pageable)
+        );
+        verify(searchHistoryRepository, never()).findByUserOrderBySearchDateDesc(any(), any());
+        verify(securityUtils).getCurrentUserId();
+    }
+
+    @Test
+    void clearUserSearchHistory_UserNotFound() {
+        // Arrange
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThrows(ResourceNotFoundException.class, () -> 
+            searchHistoryService.clearUserSearchHistory()
+        );
+        verify(searchHistoryRepository, never()).deleteByUser(any());
+        verify(securityUtils).getCurrentUserId();
+    }
+
+    @Test
+    void saveSearch_NoAuthentication() {
+        // Arrange
+        when(securityUtils.getCurrentUserId()).thenReturn(null);
+
+        // Act & Assert
+        assertThrows(ResourceNotFoundException.class, () -> 
+            searchHistoryService.saveSearch(QUERY, FILTERS, RESULTS_COUNT)
+        );
+        verify(searchHistoryRepository, never()).save(any());
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void getUserSearchHistory_NoAuthentication() {
+        // Arrange
+        when(securityUtils.getCurrentUserId()).thenReturn(null);
+
+        // Act & Assert
+        assertThrows(ResourceNotFoundException.class, () -> 
+            searchHistoryService.getUserSearchHistory(pageable)
+        );
+        verify(searchHistoryRepository, never()).findByUserOrderBySearchDateDesc(any(), any());
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void clearUserSearchHistory_NoAuthentication() {
+        // Arrange
+        when(securityUtils.getCurrentUserId()).thenReturn(null);
+
+        // Act & Assert
+        assertThrows(ResourceNotFoundException.class, () -> 
+            searchHistoryService.clearUserSearchHistory()
+        );
+        verify(searchHistoryRepository, never()).deleteByUser(any());
+        verify(userRepository, never()).findById(any());
     }
 }

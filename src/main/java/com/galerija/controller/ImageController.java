@@ -5,6 +5,7 @@ import com.galerija.dto.ExternalImageDto;
 import com.galerija.service.ImageService;
 import com.galerija.service.SearchHistoryService;
 import com.galerija.exception.ResourceNotFoundException;
+import com.galerija.security.SecurityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,9 @@ public class ImageController {
 
     @Autowired
     private SearchHistoryService searchHistoryService;
+
+    @Autowired
+    private SecurityUtils securityUtils;
 
     private static final Logger logger = LoggerFactory.getLogger(ImageController.class);
 
@@ -145,7 +149,8 @@ public class ImageController {
 
     @PostMapping
     public ResponseEntity<Image> saveImage(@RequestBody Image image) {
-        Image savedImage = imageService.saveImage(image);
+        logger.info("Received request to save image: {}", image);
+        Image savedImage = imageService.saveExternalImage(image);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedImage);
     }
 
@@ -162,18 +167,27 @@ public class ImageController {
 
     @PostMapping("/external")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<?> saveExternalImage(@RequestBody ExternalImageDto imageDto) {
+    public ResponseEntity<?> saveExternalImage(@RequestBody Image externalImage) {
         try {
-            logger.debug("Received external image DTO: {}", imageDto);
-            Image savedImage = imageService.saveExternalImage(
-                    imageDto.getWebformatURL(),
-                    imageDto.getTags(),
-                    imageDto.getUserId()
-            );
+            logger.debug("Received external image: {}", externalImage);
+            Image savedImage = imageService.saveExternalImage(externalImage);
             return ResponseEntity.status(HttpStatus.CREATED).body(savedImage);
         } catch (Exception e) {
             logger.error("Failed to save external image: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Failed to save external image: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/user")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<?> getUserImages() {
+        try {
+            List<Image> userImages = imageService.getUserImages();
+            return ResponseEntity.ok(userImages);
+        } catch (Exception e) {
+            logger.error("Failed to get user images: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Failed to get user images: " + e.getMessage());
         }
     }
 }

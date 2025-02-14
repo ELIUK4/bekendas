@@ -10,8 +10,8 @@ import java.time.LocalDateTime;
 public class Image {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false, updatable = false)
-    private Long id; // Pixabay image ID
+    @Column(name = "id", nullable = false)
+    private Long id; // Auto-generated ID
     
     @Column(name = "page_url", columnDefinition = "TEXT")
     private String pageURL;
@@ -31,7 +31,7 @@ public class Image {
     @Column(name = "preview_height")
     private Integer previewHeight = 0;
     
-    @Column(name = "webformat_url", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "webformat_url", nullable = false, columnDefinition = "LONGTEXT")
     private String webformatURL;
     
     @Column(name = "webformat_width")
@@ -40,7 +40,7 @@ public class Image {
     @Column(name = "webformat_height")
     private Integer webformatHeight = 0;
     
-    @Column(name = "large_image_url", columnDefinition = "TEXT")
+    @Column(name = "large_image_url", columnDefinition = "LONGTEXT")
     private String largeImageURL;
     
     @Column(name = "fullhd_url", columnDefinition = "TEXT")
@@ -71,10 +71,51 @@ public class Image {
     private Integer comments = 0;
     
     @Column(name = "user_id")
-    private String userId = "0";
+    private Long userId;
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+    
+    @Column(name = "file_name")
+    private String fileName;
+
+    @Column(name = "original_file_name")
+    private String originalFileName;
+
+    @Column(name = "upload_date")
+    private LocalDateTime uploadDate;
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+    
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public String getOriginalFileName() {
+        return originalFileName;
+    }
+
+    public void setOriginalFileName(String originalFileName) {
+        this.originalFileName = originalFileName;
+    }
+
+    public LocalDateTime getUploadDate() {
+        return uploadDate;
+    }
+
+    public void setUploadDate(LocalDateTime uploadDate) {
+        this.uploadDate = uploadDate;
+    }
     
     @PrePersist
     protected void onCreate() {

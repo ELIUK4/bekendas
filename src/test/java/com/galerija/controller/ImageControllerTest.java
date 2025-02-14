@@ -4,6 +4,7 @@ import com.galerija.entity.Image;
 import com.galerija.service.ImageService;
 import com.galerija.service.SearchHistoryService;
 import com.galerija.exception.ResourceNotFoundException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -16,14 +17,17 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import java.util.Collections;
 import java.util.List;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.containsString;
 
 class ImageControllerTest {
 
     private MockMvc mockMvc;
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Mock
     private ImageService imageService;
@@ -34,13 +38,19 @@ class ImageControllerTest {
     @InjectMocks
     private ImageController imageController;
 
-    private Image createTestImage(Long id, String webformatURL, String tags, String user, int likes) {
+    private Image createTestImage(Long id, String webformatURL, String tags, Long userId, int likes) {
         Image image = new Image();
         image.setId(id);
         image.setWebformatURL(webformatURL);
         image.setTags(tags);
-        image.setUserId(user);
+        image.setUserId(userId);
         image.setLikes(likes);
+        image.setViews(0);
+        image.setDownloads(0);
+        image.setComments(0);
+        image.setType("photo");
+        image.setPreviewURL(webformatURL);
+        image.setLargeImageURL(webformatURL);
         return image;
     }
 
@@ -56,7 +66,7 @@ class ImageControllerTest {
     @Test
     void testSearchImages() throws Exception {
         String query = "gamta";
-        Image testImage = createTestImage(1L, "url", "tags", "user", 0);
+        Image testImage = createTestImage(1L, "url", "tags", 1L, 0);
         List<Image> images = Collections.singletonList(testImage);
         
         when(imageService.searchPixabayImages(anyString(), anyString(), anyString(), any(), anyInt(), anyInt()))
@@ -83,7 +93,7 @@ class ImageControllerTest {
 
     @Test
     void testGetImageById_Success() throws Exception {
-        Image image = createTestImage(1L, "url", "tags", "user", 10);
+        Image image = createTestImage(1L, "url", "tags", 1L, 10);
         when(imageService.getImageById(1L)).thenReturn(image);
 
         mockMvc.perform(get("/api/images/1"))
@@ -102,12 +112,12 @@ class ImageControllerTest {
 
     @Test
     void testSaveImage() throws Exception {
-        Image image = createTestImage(1L, "url", "tags", "user", 0);
+        Image image = createTestImage(1L, "url", "tags", 1L, 0);
         when(imageService.saveImage(any(Image.class))).thenReturn(image);
 
         mockMvc.perform(post("/api/images")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"id\":1,\"webformatURL\":\"url\",\"tags\":\"tags\",\"user\":\"user\",\"likes\":0}"))
+                .content("{\"id\":1,\"webformatURL\":\"url\",\"tags\":\"tags\",\"userId\":1,\"likes\":0}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.webformatURL").value("url"));
@@ -116,7 +126,7 @@ class ImageControllerTest {
     @Test
     void testSearchImages_KaiNeraCategorijos() throws Exception {
         String query = "gamta";
-        Image testImage = createTestImage(1L, "url", "tags", "user", 0);
+        Image testImage = createTestImage(1L, "url", "tags", 1L, 0);
         List<Image> images = Collections.singletonList(testImage);
         
         when(imageService.searchPixabayImages(anyString(), anyString(), anyString(), isNull(), anyInt(), anyInt()))
@@ -160,7 +170,7 @@ class ImageControllerTest {
     void testSearchImages_SuKategorija() throws Exception {
         String query = "gamta";
         String category = "animals";
-        Image testImage = createTestImage(1L, "url", "tags", "user", 0);
+        Image testImage = createTestImage(1L, "url", "tags", 1L, 0);
         List<Image> images = Collections.singletonList(testImage);
         
         when(imageService.searchPixabayImages(anyString(), anyString(), anyString(), eq(category), anyInt(), anyInt()))
@@ -188,7 +198,7 @@ class ImageControllerTest {
 
     @Test
     void testLikeImage_Success() throws Exception {
-        Image image = createTestImage(1L, "url", "tags", "user", 1);
+        Image image = createTestImage(1L, "url", "tags", 1L, 1);
         when(imageService.likeImage(1L)).thenReturn(image);
 
         mockMvc.perform(post("/api/images/1/like"))
@@ -206,14 +216,51 @@ class ImageControllerTest {
 
     @Test
     void testSaveExternalImage_Success() throws Exception {
-        Image image = createTestImage(1L, "webformatURL", "tags", "user", 0);
-        when(imageService.saveExternalImage(anyString(), anyString(), anyString())).thenReturn(image);
+        // Given
+        Image image = new Image();
+        image.setWebformatURL("http://example.com/image.jpg");
+        image.setTags("test tags");
+        image.setUserId(1L);
 
+        Image savedImage = new Image();
+        savedImage.setId(1L);
+        savedImage.setWebformatURL("http://example.com/image.jpg");
+        savedImage.setTags("test tags");
+        savedImage.setUserId(1L);
+
+        when(imageService.saveExternalImage(any(Image.class))).thenReturn(savedImage);
+
+        // When & Then
         mockMvc.perform(post("/api/images/external")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"webformatURL\":\"webformatURL\",\"tags\":\"tags\",\"user\":\"user\"}"))
+                .content(objectMapper.writeValueAsString(image)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.webformatURL").value("webformatURL"));
+                .andExpect(jsonPath("$.webformatURL").value("http://example.com/image.jpg"))
+                .andExpect(jsonPath("$.tags").value("test tags"))
+                .andExpect(jsonPath("$.userId").value(1));
+
+        verify(imageService).saveExternalImage(any(Image.class));
+    }
+
+    @Test
+    void testSaveExternalImage_Error() throws Exception {
+        // Given
+        Image image = new Image();
+        image.setWebformatURL("http://example.com/image.jpg");
+        image.setTags("test tags");
+        image.setUserId(1L);
+
+        when(imageService.saveExternalImage(any(Image.class)))
+                .thenThrow(new RuntimeException("Failed to save image"));
+
+        // When & Then
+        mockMvc.perform(post("/api/images/external")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(image)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("Failed to save image")));
+
+        verify(imageService).saveExternalImage(any(Image.class));
     }
 }

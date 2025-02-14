@@ -25,4 +25,6 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     @Query("SELECT i FROM Image i WHERE i.id IN " +
            "(SELECT f.image.id FROM Favorite f WHERE f.user.id = :userId)")
     Page<Image> findUserFavorites(@Param("userId") Long userId, Pageable pageable);
+
+    List<Image> findByUserId(Long userId);
 }

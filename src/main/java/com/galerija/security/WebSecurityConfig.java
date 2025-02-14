@@ -82,7 +82,9 @@ public class WebSecurityConfig {
             ).permitAll()
             .requestMatchers(
                 "/api/images/external",
-                "/api/favorites/**"
+                "/api/images/upload",
+                "/api/favorites/**",
+                "/api/search-history/**"
             ).authenticated()
             .anyRequest().permitAll()
         );
