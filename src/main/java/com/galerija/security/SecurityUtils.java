@@ -68,4 +68,13 @@ public class SecurityUtils {
         logger.debug("Current user ID: {}", currentUser.getId());
         return currentUser.getId();
     }
+
+    public UserEntity getCurrentUserEntity() {
+        UserEntity currentUser = getCurrentUser();
+        if (currentUser == null) {
+            logger.warn("No current user found");
+            throw new com.galerija.exception.ResourceNotFoundException("Vartotojas nerastas arba neprisijungęs");
+        }
+        return currentUser;
+    }
 }

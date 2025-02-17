@@ -32,12 +32,13 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         
         String path = request.getRequestURI();
         logger.debug("Processing request: {} {}", request.getMethod(), path);
-        logger.debug("Authorization header: {}", request.getHeader("Authorization"));
         
         // Skip authentication for public endpoints
         if (path.startsWith("/api/auth/") || 
             path.startsWith("/api/images/search") || 
-            path.startsWith("/api/categories/")) {
+            path.startsWith("/api/images/public") ||
+            path.startsWith("/api/categories") ||
+            path.startsWith("/uploads/")) {
             logger.debug("Skipping authentication for public endpoint: {}", path);
             filterChain.doFilter(request, response);
             return;
@@ -45,7 +46,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
         try {
             String jwt = parseJwt(request);
-            logger.debug("JWT token: {}", jwt);
             
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
@@ -62,17 +62,13 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
                 logger.debug("Successfully set authentication in SecurityContext");
             } else if (jwt != null) {
-                logger.debug("Invalid JWT token");
+                logger.error("Invalid JWT token");
             }
         } catch (Exception e) {
-            logger.error("Cannot set user authentication: {}", e.getMessage());
+            logger.error("Cannot set user authentication: {}", e.getMessage(), e);
         }
 
         filterChain.doFilter(request, response);
-        
-        // Log response status and headers
-        logger.debug("Response status: {}", response.getStatus());
-        logger.debug("Response headers: {}", response.getHeaderNames());
     }
 
     private String parseJwt(HttpServletRequest request) {

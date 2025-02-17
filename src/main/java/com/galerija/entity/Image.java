@@ -70,15 +70,25 @@ public class Image {
     @Column
     private Integer comments = 0;
     
-    @Column(name = "user_id")
-    private Long userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private UserEntity user;
+
+    public UserEntity getUser() {
+        return user;
+    }
+
+    public void setUser(UserEntity user) {
+        this.user = user;
+    }
 
     public Long getUserId() {
-        return userId;
+        return user != null ? user.getId() : null;
     }
 
     public void setUserId(Long userId) {
-        this.userId = userId;
+        // This method is kept for backwards compatibility
+        // The user should be set using setUser(UserEntity) instead
     }
     
     @Column(name = "file_name")
@@ -89,10 +99,11 @@ public class Image {
 
     @Column(name = "upload_date")
     private LocalDateTime uploadDate;
-    
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-    
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "privacy", nullable = false)
+    private ImagePrivacy privacy = ImagePrivacy.PRIVATE;
+
     public String getFileName() {
         return fileName;
     }
@@ -116,6 +127,17 @@ public class Image {
     public void setUploadDate(LocalDateTime uploadDate) {
         this.uploadDate = uploadDate;
     }
+    
+    public ImagePrivacy getPrivacy() {
+        return privacy;
+    }
+
+    public void setPrivacy(ImagePrivacy privacy) {
+        this.privacy = privacy;
+    }
+    
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
     
     @PrePersist
     protected void onCreate() {

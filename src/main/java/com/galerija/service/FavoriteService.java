@@ -54,20 +54,24 @@ public class FavoriteService {
                 });
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Page<Favorite> getUserFavorites(int page, int size) {
         logger.debug("Getting favorites for page {} with size {}", page, size);
         UserEntity currentUser = getCurrentUser();
         logger.debug("Current user: {}", currentUser.getUsername());
-        return favoriteRepository.findByUser(
-            currentUser, 
-            PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
-        );
+        
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return favoriteRepository.findByUserIdWithUser(currentUser.getId(), pageRequest);
     }
 
     @Transactional
     public Favorite addToFavorites(Long imageId) {
         logger.info("Starting to add image with ID {} to favorites", imageId);
+        
+        if (imageId == null) {
+            logger.error("Image ID cannot be null");
+            throw new ResourceNotFoundException("Image ID cannot be null");
+        }
         
         UserEntity user = getCurrentUser();
         logger.debug("Current user retrieved: {}", user.getUsername());

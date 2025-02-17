@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,8 +19,11 @@ import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.springframework.web.bind.annotation.CrossOrigin;
+
 @RestController
-@RequestMapping("/api/images")
+@RequestMapping("/api/upload")
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true", maxAge = 3600)
 public class ImageUploadController {
 
     private final ImageService imageService;
@@ -35,6 +39,7 @@ public class ImageUploadController {
     }
 
     @PostMapping("/upload")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ImageDto> uploadImage(
             @RequestParam("file") MultipartFile file
     ) {
@@ -64,6 +69,7 @@ public class ImageUploadController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> deleteImage(@PathVariable Long id) {
         try {
             imageService.deleteImage(id);

@@ -77,12 +77,14 @@ public class WebSecurityConfig {
                 "/api/auth/**",
                 "/api/test/**",
                 "/api/images/search",
-                "/api/images/**",
+                "/api/images/public/**",
+                "/uploads/**",
                 "/api/categories/**"
             ).permitAll()
             .requestMatchers(
                 "/api/images/external",
-                "/api/images/upload",
+                "/api/images/user/**",
+                "/api/images/upload/**",
                 "/api/favorites/**",
                 "/api/search-history/**"
             ).authenticated()
@@ -93,6 +95,7 @@ public class WebSecurityConfig {
 
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
+        logger.info("Security filter chain configured successfully");
         return http.build();
     }
 }
